@@ -223,6 +223,20 @@ pub struct Conf {
     /// Defaults to `false`.
     pub fullscreen: bool,
 
+    /// If `true`, create the window but never show it.
+    ///
+    /// The graphics context is created as usual and keeps rendering, but the
+    /// window is not mapped, moved on screen or given focus: a capture or a
+    /// reproducible render runs without a window appearing in front of the
+    /// user. `fullscreen` is ignored while this is set.
+    ///
+    /// Ignored on WASM, Android and iOS, which have no desktop window to hide,
+    /// and on Wayland, where the surface becomes usable only once it is
+    /// committed to the compositor (the backend is still unstable).
+    ///
+    /// Defaults to `false`.
+    pub window_hidden: bool,
+
     /// MSAA sample count.
     /// Defaults to `1`.
     pub sample_count: i32,
@@ -281,6 +295,7 @@ impl Default for Conf {
             window_height: 600,
             high_dpi: false,
             fullscreen: false,
+            window_hidden: false,
             sample_count: 1,
             window_resizable: true,
             icon: Some(Icon::miniquad_logo()),
@@ -298,6 +313,7 @@ impl Default for Conf {
             window_height: 600,
             high_dpi: true,
             fullscreen: true, //
+            window_hidden: false,
             sample_count: 1,
             window_resizable: false, //
             icon: Some(Icon::miniquad_logo()),

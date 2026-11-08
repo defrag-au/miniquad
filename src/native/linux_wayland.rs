@@ -1052,6 +1052,14 @@ where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
 {
     unsafe {
+        // Wayland's surface only becomes usable once a buffer is committed to
+        // the compositor, which is also what maps it, so a hidden run cannot
+        // be supported here without a different surface path.
+        if conf.window_hidden {
+            eprintln!(
+                "miniquad: window_hidden is not supported on Wayland; the window will be shown"
+            );
+        }
         let client = LibWaylandClient::try_load().ok()?;
         let egl = LibWaylandEgl::try_load().ok()?;
         let xkb = LibXkbCommon::try_load().ok()?;

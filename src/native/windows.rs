@@ -1160,7 +1160,9 @@ where
         }
         let (wnd, dc) = create_window(
             &conf.window_title,
-            conf.fullscreen,
+            // A hidden window is created without `WS_VISIBLE`, so nothing is
+            // shown when the WGL context is made below.
+            conf.fullscreen && !conf.window_hidden,
             conf.window_resizable,
             conf.window_width as _,
             conf.window_height as _,
@@ -1219,7 +1221,9 @@ where
 
         // IMPORTANT: Show window AFTER WGL context is created
         // This ensures IME initializes correctly when window gains focus
-        ShowWindow(wnd, SW_SHOW);
+        if !conf.window_hidden {
+            ShowWindow(wnd, SW_SHOW);
+        }
 
         // Register for raw mouse input (needed for raw_mouse_motion event)
         let mut rawinputdevice: RAWINPUTDEVICE = std::mem::zeroed();

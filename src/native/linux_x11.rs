@@ -474,7 +474,12 @@ where
     gl::load_gl_funcs(|proc| glx.libgl.get_procaddr(proc));
 
     display.init_drag_n_drop();
-    display.libx11.show_window(display.display, display.window);
+    // An unmapped window still owns a GLX drawable: EGL and GLX both bind the
+    // context to it, and a render target does not touch the default
+    // framebuffer, so a hidden run draws without a window appearing.
+    if !conf.window_hidden {
+        display.libx11.show_window(display.display, display.window);
+    }
 
     (display.libx11.XFlush)(display.display);
 
@@ -494,7 +499,7 @@ where
         blocking_event_loop: conf.platform.blocking_event_loop,
         ..NativeDisplayData::new(w, h, tx, clipboard)
     });
-    if conf.fullscreen {
+    if conf.fullscreen && !conf.window_hidden {
         display.set_fullscreen(display.window, true);
     }
 
@@ -587,7 +592,9 @@ where
     });
 
     display.init_drag_n_drop();
-    display.libx11.show_window(display.display, display.window);
+    if !conf.window_hidden {
+        display.libx11.show_window(display.display, display.window);
+    }
     let (w, h) = display
         .libx11
         .query_window_size(display.display, display.window);
@@ -604,7 +611,7 @@ where
         blocking_event_loop: conf.platform.blocking_event_loop,
         ..NativeDisplayData::new(w, h, tx, clipboard)
     });
-    if conf.fullscreen {
+    if conf.fullscreen && !conf.window_hidden {
         display.set_fullscreen(display.window, true)
     }
 
