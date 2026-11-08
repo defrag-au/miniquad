@@ -1011,17 +1011,18 @@ unsafe fn create_metal_view(_: &mut MacosDisplay, sample_count: i32, _: bool) ->
 }
 
 #[allow(clippy::vec_init_then_push)]
-unsafe fn create_opengl_view(
-    display: &mut MacosDisplay,
-    sample_count: i32,
-    high_dpi: bool,
-) -> ObjcId {
+unsafe fn create_opengl_pixel_format(sample_count: i32, windowed: bool) -> ObjcId {
     use NSOpenGLPixelFormatAttribute::*;
 
     let mut attrs: Vec<u32> = vec![];
 
-    attrs.push(NSOpenGLPFAAccelerated as _);
-    attrs.push(NSOpenGLPFADoubleBuffer as _);
+    // A windowed context needs a drawable and a double buffer. A headless one
+    // has neither: asking for `Accelerated` would also turn a software fallback
+    // into a hard failure on a machine with no GPU.
+    if windowed {
+        attrs.push(NSOpenGLPFAAccelerated as _);
+        attrs.push(NSOpenGLPFADoubleBuffer as _);
+    }
     attrs.push(NSOpenGLPFAOpenGLProfile as _);
     attrs.push(NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion3_2Core as _);
     attrs.push(NSOpenGLPFAColorSize as _);
@@ -1045,23 +1046,36 @@ unsafe fn create_opengl_view(
     attrs.push(0);
 
     let glpixelformat_obj = msg_send_![class!(NSOpenGLPixelFormat), alloc];
-    let glpixelformat_obj = msg_send_![glpixelformat_obj, initWithAttributes: attrs.as_ptr()];
-    assert!(!glpixelformat_obj.is_null());
+    msg_send_![glpixelformat_obj, initWithAttributes: attrs.as_ptr()]
+}
 
-    let view_class = define_opengl_view_class();
-    let view: ObjcId = msg_send![view_class, alloc];
-    let view: ObjcId = msg_send![view, init];
-
-    let gl_context = msg_send_![class!(NSOpenGLContext), alloc];
-
-    display.gl_context = msg_send![gl_context, initWithFormat: glpixelformat_obj shareContext: nil];
+unsafe fn create_opengl_context(pixel_format: ObjcId) -> ObjcId {
+    let gl_context: ObjcId = msg_send_![class!(NSOpenGLContext), alloc];
+    let gl_context: ObjcId = msg_send![gl_context, initWithFormat: pixel_format shareContext: nil];
 
     // Set the swap interval to 0 to disable vsync, because we're using CVDisplayLink for frame pacing
     // and we don't want to have an extra vsync delay on top of that.
     let mut swap_interval = 0;
-    let () = msg_send![display.gl_context,
+    let () = msg_send![gl_context,
                 setValues:&mut swap_interval
                 forParameter:NSOpenGLContextParameterSwapInterval];
+
+    gl_context
+}
+
+unsafe fn create_opengl_view(
+    display: &mut MacosDisplay,
+    sample_count: i32,
+    high_dpi: bool,
+) -> ObjcId {
+    let pixel_format = create_opengl_pixel_format(sample_count, true);
+    assert!(!pixel_format.is_null());
+    display.gl_context = create_opengl_context(pixel_format);
+    assert!(!display.gl_context.is_null());
+
+    let view_class = define_opengl_view_class();
+    let view: ObjcId = msg_send![view_class, alloc];
+    let view: ObjcId = msg_send![view, init];
 
     if high_dpi {
         let () = msg_send![view, setWantsBestResolutionOpenGLSurface: YES];
@@ -1305,6 +1319,99 @@ unsafe fn perform_redraw(
             }
         };
     }
+}
+
+/// Run the event handler with no window at all.
+///
+/// The OpenGL context has no view and no drawable: frames go into render
+/// targets, as they do for a capture. There is no `NSWindow`, no application
+/// run loop and no display link; `update` and `draw` are called back to back.
+///
+/// There is no display scale to infer, so one point is one pixel. That keeps a
+/// capture identical on a Retina Mac, an external display and a CI runner; a
+/// caller that wants more pixels asks for a larger `window_width`/
+/// `window_height`.
+pub unsafe fn run_headless<F>(conf: &crate::conf::Conf, f: F)
+where
+    F: 'static + FnOnce() -> Box<dyn EventHandler>,
+{
+    assert_eq!(
+        conf.platform.apple_gfx_api,
+        AppleGfxApi::OpenGl,
+        "miniquad: headless rendering needs AppleGfxApi::OpenGl on macOS"
+    );
+
+    let pixel_format = create_opengl_pixel_format(conf.sample_count, false);
+    assert!(
+        !pixel_format.is_null(),
+        "miniquad: no OpenGL pixel format for headless rendering"
+    );
+    let gl_context = create_opengl_context(pixel_format);
+    assert!(
+        !gl_context.is_null(),
+        "miniquad: no OpenGL context for headless rendering"
+    );
+    msg_send_![gl_context, makeCurrentContext];
+
+    gl::load_gl_funcs(|proc| {
+        let name = std::ffi::CString::new(proc).unwrap();
+        get_proc_address(name.as_ptr() as _)
+    });
+
+    let width = conf.window_width.max(1);
+    let height = conf.window_height.max(1);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    crate::set_display(NativeDisplayData {
+        ..NativeDisplayData::new(width, height, tx, Box::new(MacosClipboard))
+    });
+
+    let mut event_handler = f();
+    event_handler.resize_event(width as f32, height as f32);
+
+    loop {
+        while let Ok(request) = rx.try_recv() {
+            match request {
+                Request::ScheduleUpdate => {}
+                Request::SetWindowSize {
+                    new_width,
+                    new_height,
+                } => {
+                    let w = new_width.max(1) as i32;
+                    let h = new_height.max(1) as i32;
+                    {
+                        let mut d = native_display().lock().unwrap();
+                        d.screen_width = w;
+                        d.screen_height = h;
+                    }
+                    event_handler.resize_event(w as f32, h as f32);
+                }
+                _ => {}
+            }
+        }
+
+        let (ordered, requested) = {
+            let d = native_display().lock().unwrap();
+            (d.quit_ordered, d.quit_requested)
+        };
+        if ordered {
+            break;
+        }
+        if requested {
+            event_handler.quit_requested_event();
+            let mut d = native_display().lock().unwrap();
+            if d.quit_requested {
+                d.quit_requested = false;
+                d.quit_ordered = true;
+                break;
+            }
+        }
+
+        event_handler.update();
+        event_handler.draw();
+    }
+
+    let () = msg_send![gl_context, clearCurrentContext];
 }
 
 pub unsafe fn run<F>(conf: crate::conf::Conf, f: F)

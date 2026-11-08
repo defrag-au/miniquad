@@ -11,6 +11,7 @@ pub mod conf;
 mod event;
 pub mod fs;
 pub mod graphics;
+pub mod headless;
 pub mod native;
 use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
@@ -463,6 +464,11 @@ pub fn start<F>(conf: conf::Conf, f: F)
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
 {
+    if conf.headless {
+        headless::start(conf, f);
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     {
         let mut f = Some(f);

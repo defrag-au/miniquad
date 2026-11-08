@@ -237,6 +237,21 @@ pub struct Conf {
     /// Defaults to `false`.
     pub window_hidden: bool,
 
+    /// If `true`, render with no window at all.
+    ///
+    /// The framebuffer is `window_width` × `window_height` pixels. There is no
+    /// display to infer a scale from, so one point is one pixel; a caller that
+    /// wants more pixels asks for a larger size. `high_dpi`, `fullscreen` and
+    /// [`window_hidden`](Self::window_hidden) do not apply.
+    ///
+    /// Implemented on macOS: an `NSOpenGLContext` with no view, no
+    /// `NSApplication` run loop and no display link. Elsewhere it falls back to
+    /// a hidden window, and says so, until that platform's offscreen backend
+    /// lands.
+    ///
+    /// Defaults to `false`.
+    pub headless: bool,
+
     /// MSAA sample count.
     /// Defaults to `1`.
     pub sample_count: i32,
@@ -296,6 +311,7 @@ impl Default for Conf {
             high_dpi: false,
             fullscreen: false,
             window_hidden: false,
+            headless: false,
             sample_count: 1,
             window_resizable: true,
             icon: Some(Icon::miniquad_logo()),
@@ -314,6 +330,7 @@ impl Default for Conf {
             high_dpi: true,
             fullscreen: true, //
             window_hidden: false,
+            headless: false,
             sample_count: 1,
             window_resizable: false, //
             icon: Some(Icon::miniquad_logo()),
