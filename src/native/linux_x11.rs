@@ -449,7 +449,6 @@ unsafe fn glx_main_loop<F>(
     conf: &crate::conf::Conf,
     f: &mut Option<F>,
     screen: i32,
-    headless_fallback: bool,
 ) -> Result<(), X11Display>
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
@@ -475,12 +474,7 @@ where
     gl::load_gl_funcs(|proc| glx.libgl.get_procaddr(proc));
 
     display.init_drag_n_drop();
-    // An unmapped window still owns a GLX drawable: EGL and GLX both bind the
-    // context to it, and a render target does not touch the default
-    // framebuffer, so a headless run draws without a window appearing.
-    if !headless_fallback {
-        display.libx11.show_window(display.display, display.window);
-    }
+    display.libx11.show_window(display.display, display.window);
 
     (display.libx11.XFlush)(display.display);
 
@@ -500,7 +494,7 @@ where
         blocking_event_loop: conf.platform.blocking_event_loop,
         ..NativeDisplayData::new(w, h, tx, clipboard)
     });
-    if conf.fullscreen && !headless_fallback {
+    if conf.fullscreen {
         display.set_fullscreen(display.window, true);
     }
 
@@ -550,7 +544,6 @@ unsafe fn egl_main_loop<F>(
     mut display: X11Display,
     conf: &crate::conf::Conf,
     f: &mut Option<F>,
-    headless_fallback: bool,
 ) -> Result<(), X11Display>
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
@@ -594,9 +587,7 @@ where
     });
 
     display.init_drag_n_drop();
-    if !headless_fallback {
-        display.libx11.show_window(display.display, display.window);
-    }
+    display.libx11.show_window(display.display, display.window);
     let (w, h) = display
         .libx11
         .query_window_size(display.display, display.window);
@@ -613,7 +604,7 @@ where
         blocking_event_loop: conf.platform.blocking_event_loop,
         ..NativeDisplayData::new(w, h, tx, clipboard)
     });
-    if conf.fullscreen && !headless_fallback {
+    if conf.fullscreen {
         display.set_fullscreen(display.window, true)
     }
 
@@ -658,7 +649,6 @@ where
 pub fn run<F>(
     conf: &crate::conf::Conf,
     f: &mut Option<F>,
-    headless_fallback: bool,
 ) -> Result<(), X11Error>
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
@@ -716,29 +706,19 @@ where
 
         match conf.platform.linux_x11_gl {
             crate::conf::LinuxX11Gl::GLXOnly => {
-                glx_main_loop(display, conf, f, x11_screen, headless_fallback)
-                    .ok()
-                    .unwrap();
+                glx_main_loop(display, conf, f, x11_screen).ok().unwrap();
             }
             crate::conf::LinuxX11Gl::EGLOnly => {
-                egl_main_loop(display, conf, f, headless_fallback)
-                    .ok()
-                    .unwrap();
+                egl_main_loop(display, conf, f).ok().unwrap();
             }
             crate::conf::LinuxX11Gl::GLXWithEGLFallback => {
-                if let Err(display) =
-                    glx_main_loop(display, conf, f, x11_screen, headless_fallback)
-                {
-                    egl_main_loop(display, conf, f, headless_fallback)
-                        .ok()
-                        .unwrap();
+                if let Err(display) = glx_main_loop(display, conf, f, x11_screen) {
+                    egl_main_loop(display, conf, f).ok().unwrap();
                 }
             }
             crate::conf::LinuxX11Gl::EGLWithGLXFallback => {
-                if let Err(display) = egl_main_loop(display, conf, f, headless_fallback) {
-                    glx_main_loop(display, conf, f, x11_screen, headless_fallback)
-                        .ok()
-                        .unwrap();
+                if let Err(display) = egl_main_loop(display, conf, f) {
+                    glx_main_loop(display, conf, f, x11_screen).ok().unwrap();
                 }
             }
         }

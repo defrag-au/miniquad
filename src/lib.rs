@@ -468,8 +468,9 @@ where
 }
 
 /// The fallback [`headless`] takes on a backend that cannot render without a
-/// window: the platform gets a window it never shows.
-#[cfg(not(target_os = "macos"))]
+/// window: the platform gets a surface it never shows. Linux and macOS have
+/// offscreen backends of their own, so this is only for the rest.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub(crate) fn start_headless_fallback<F>(conf: conf::Conf, f: F)
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
@@ -488,27 +489,28 @@ where
 
     #[cfg(target_os = "linux")]
     {
+        // Linux renders headless through EGL, above; a window is never hidden.
+        let _ = headless_fallback;
         let mut f = Some(f);
         let f = &mut f;
         match conf.platform.linux_backend {
             conf::LinuxBackend::X11Only => {
-                native::linux_x11::run(&conf, f, headless_fallback).expect("X11 backend failed")
+                native::linux_x11::run(&conf, f).expect("X11 backend failed")
             }
             conf::LinuxBackend::WaylandOnly => {
-                native::linux_wayland::run(&conf, f, headless_fallback)
-                    .expect("Wayland backend failed")
+                native::linux_wayland::run(&conf, f).expect("Wayland backend failed")
             }
             conf::LinuxBackend::X11WithWaylandFallback => {
-                if let Err(err) = native::linux_x11::run(&conf, f, headless_fallback) {
+                if let Err(err) = native::linux_x11::run(&conf, f) {
                     eprintln!("{err:?}");
                     eprintln!("Failed to initialize through X11! Trying wayland instead");
-                    native::linux_wayland::run(&conf, f, headless_fallback);
+                    native::linux_wayland::run(&conf, f);
                 }
             }
             conf::LinuxBackend::WaylandWithX11Fallback => {
-                if native::linux_wayland::run(&conf, f, headless_fallback).is_none() {
+                if native::linux_wayland::run(&conf, f).is_none() {
                     eprintln!("Failed to initialize through wayland! Trying X11 instead");
-                    native::linux_x11::run(&conf, f, headless_fallback).unwrap()
+                    native::linux_x11::run(&conf, f).unwrap()
                 }
             }
         }

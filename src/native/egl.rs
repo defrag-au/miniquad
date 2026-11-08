@@ -19,7 +19,9 @@ use std::fmt::Display;
 
 pub const EGL_SUCCESS: u32 = 12288;
 
+pub const EGL_PBUFFER_BIT: u32 = 1;
 pub const EGL_WINDOW_BIT: u32 = 4;
+pub const EGL_OPENGL_ES2_BIT: u32 = 4;
 
 pub const EGL_ALPHA_SIZE: u32 = 12321;
 pub const EGL_BLUE_SIZE: u32 = 12322;
@@ -33,7 +35,10 @@ pub const EGL_WIDTH: u32 = 12375;
 pub const EGL_HEIGHT: u32 = 12374;
 pub const EGL_SURFACE_TYPE: u32 = 12339;
 pub const EGL_NONE: u32 = 12344;
+pub const EGL_RENDERABLE_TYPE: u32 = 12352;
 pub const EGL_CONTEXT_CLIENT_VERSION: u32 = 12440;
+pub const EGL_OPENGL_ES_API: u32 = 12448;
+pub const EGL_PLATFORM_SURFACELESS_MESA: u32 = 12765;
 
 pub type NativeDisplayType = EGLNativeDisplayType;
 pub type NativePixmapType = EGLNativePixmapType;
@@ -52,6 +57,7 @@ crate::declare_module! {
     "libEGL.so.1",
     ...
     ...
+    pub fn eglBindAPI(u32) -> EGLBoolean,
     pub fn eglChooseConfig(
         EGLDisplay,
         *const EGLint,
