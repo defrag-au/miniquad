@@ -223,31 +223,17 @@ pub struct Conf {
     /// Defaults to `false`.
     pub fullscreen: bool,
 
-    /// If `true`, create the window but never show it.
-    ///
-    /// The graphics context is created as usual and keeps rendering, but the
-    /// window is not mapped, moved on screen or given focus: a capture or a
-    /// reproducible render runs without a window appearing in front of the
-    /// user. `fullscreen` is ignored while this is set.
-    ///
-    /// Ignored on WASM, Android and iOS, which have no desktop window to hide,
-    /// and on Wayland, where the surface becomes usable only once it is
-    /// committed to the compositor (the backend is still unstable).
-    ///
-    /// Defaults to `false`.
-    pub window_hidden: bool,
-
     /// If `true`, render with no window at all.
     ///
     /// The framebuffer is `window_width` × `window_height` pixels. There is no
     /// display to infer a scale from, so one point is one pixel; a caller that
-    /// wants more pixels asks for a larger size. `high_dpi`, `fullscreen` and
-    /// [`window_hidden`](Self::window_hidden) do not apply.
+    /// wants more pixels asks for a larger size. `high_dpi` and `fullscreen` do
+    /// not apply.
     ///
     /// Implemented on macOS: an `NSOpenGLContext` with no view, no
     /// `NSApplication` run loop and no display link. Elsewhere it falls back to
-    /// a hidden window, and says so, until that platform's offscreen backend
-    /// lands.
+    /// a window it never shows (or the canvas, on the web) inside this flag,
+    /// and says so, until that platform's offscreen backend lands.
     ///
     /// Defaults to `false`.
     pub headless: bool,
@@ -310,7 +296,6 @@ impl Default for Conf {
             window_height: 600,
             high_dpi: false,
             fullscreen: false,
-            window_hidden: false,
             headless: false,
             sample_count: 1,
             window_resizable: true,
@@ -329,7 +314,6 @@ impl Default for Conf {
             window_height: 600,
             high_dpi: true,
             fullscreen: true, //
-            window_hidden: false,
             headless: false,
             sample_count: 1,
             window_resizable: false, //

@@ -464,6 +464,23 @@ pub fn start<F>(conf: conf::Conf, f: F)
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
 {
+    start_with(conf, f, false)
+}
+
+/// The fallback [`headless`] takes on a backend that cannot render without a
+/// window: the platform gets a window it never shows.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn start_headless_fallback<F>(conf: conf::Conf, f: F)
+where
+    F: 'static + FnOnce() -> Box<dyn EventHandler>,
+{
+    start_with(conf, f, true)
+}
+
+fn start_with<F>(conf: conf::Conf, f: F, headless_fallback: bool)
+where
+    F: 'static + FnOnce() -> Box<dyn EventHandler>,
+{
     if conf.headless {
         headless::start(conf, f);
         return;
@@ -475,49 +492,61 @@ where
         let f = &mut f;
         match conf.platform.linux_backend {
             conf::LinuxBackend::X11Only => {
-                native::linux_x11::run(&conf, f).expect("X11 backend failed")
+                native::linux_x11::run(&conf, f, headless_fallback).expect("X11 backend failed")
             }
             conf::LinuxBackend::WaylandOnly => {
-                native::linux_wayland::run(&conf, f).expect("Wayland backend failed")
+                native::linux_wayland::run(&conf, f, headless_fallback)
+                    .expect("Wayland backend failed")
             }
             conf::LinuxBackend::X11WithWaylandFallback => {
-                if let Err(err) = native::linux_x11::run(&conf, f) {
+                if let Err(err) = native::linux_x11::run(&conf, f, headless_fallback) {
                     eprintln!("{err:?}");
                     eprintln!("Failed to initialize through X11! Trying wayland instead");
-                    native::linux_wayland::run(&conf, f);
+                    native::linux_wayland::run(&conf, f, headless_fallback);
                 }
             }
             conf::LinuxBackend::WaylandWithX11Fallback => {
-                if native::linux_wayland::run(&conf, f).is_none() {
+                if native::linux_wayland::run(&conf, f, headless_fallback).is_none() {
                     eprintln!("Failed to initialize through wayland! Trying X11 instead");
-                    native::linux_x11::run(&conf, f).unwrap()
+                    native::linux_x11::run(&conf, f, headless_fallback).unwrap()
                 }
             }
         }
     }
 
     #[cfg(target_os = "android")]
-    unsafe {
-        native::android::run(conf, f);
+    {
+        let _ = headless_fallback;
+        unsafe {
+            native::android::run(conf, f);
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
     {
+        let _ = headless_fallback;
         native::wasm::run(&conf, f);
     }
 
     #[cfg(target_os = "windows")]
     {
-        native::windows::run(&conf, f);
+        native::windows::run(&conf, f, headless_fallback);
     }
 
     #[cfg(target_os = "macos")]
-    unsafe {
-        native::macos::run(conf, f);
+    {
+        // Headless is handled above, so a macOS window is always shown.
+        let _ = headless_fallback;
+        unsafe {
+            native::macos::run(conf, f);
+        }
     }
 
     #[cfg(any(target_os = "ios", target_os = "tvos"))]
-    unsafe {
-        native::ios::run(conf, f);
+    {
+        let _ = headless_fallback;
+        unsafe {
+            native::ios::run(conf, f);
+        }
     }
 }

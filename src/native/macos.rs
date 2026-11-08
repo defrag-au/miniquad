@@ -1452,14 +1452,11 @@ where
 
     let ns_app: ObjcId = msg_send![class!(NSApplication), sharedApplication];
     let () = msg_send![ns_app, setDelegate: app_delegate_instance];
-    // A hidden window is an accessory app: no Dock icon, no menu bar and no
-    // activation, so a capture run leaves the user's frontmost app alone.
-    let activation_policy = if conf.window_hidden {
-        NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory
-    } else {
-        NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular
-    };
-    let () = msg_send![ns_app, setActivationPolicy: activation_policy as i64];
+    let () = msg_send![
+        ns_app,
+        setActivationPolicy: NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular
+            as i64
+    ];
 
     if let Some(icon) = &conf.icon {
         set_icon(ns_app, icon);
@@ -1543,19 +1540,12 @@ where
     let () = msg_send![window, center];
     let () = msg_send![window, setAcceptsMouseMovedEvents: YES];
 
-    // Fullscreen would order the window front, which is what a hidden run
-    // exists to avoid.
-    if conf.fullscreen && !conf.window_hidden {
+    if conf.fullscreen {
         let () = msg_send![window, toggleFullScreen: nil];
     }
 
-    // `initWithContentRect:` leaves a window off screen until it is ordered
-    // front, so a hidden window is simply never ordered front. Rendering into
-    // a target does not need it: the context belongs to the view.
-    if !conf.window_hidden {
-        msg_send_![window, orderFront: nil];
-        let () = msg_send![window, makeKeyAndOrderFront: nil];
-    }
+    msg_send_![window, orderFront: nil];
+    let () = msg_send![window, makeKeyAndOrderFront: nil];
 
     let () = msg_send![ns_app, finishLaunching];
 

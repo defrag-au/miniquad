@@ -1047,17 +1047,21 @@ unsafe extern "C" fn data_device_handle_data_offer(
     );
 }
 
-pub fn run<F>(conf: &crate::conf::Conf, f: &mut Option<F>) -> Option<()>
+pub fn run<F>(
+    conf: &crate::conf::Conf,
+    f: &mut Option<F>,
+    headless_fallback: bool,
+) -> Option<()>
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
 {
     unsafe {
         // Wayland's surface only becomes usable once a buffer is committed to
-        // the compositor, which is also what maps it, so a hidden run cannot
-        // be supported here without a different surface path.
-        if conf.window_hidden {
+        // the compositor, which is also what maps it, so headless cannot hide
+        // its window here without a different surface path.
+        if headless_fallback {
             eprintln!(
-                "miniquad: window_hidden is not supported on Wayland; the window will be shown"
+                "miniquad: headless is not supported on Wayland yet; the window will be shown"
             );
         }
         let client = LibWaylandClient::try_load().ok()?;

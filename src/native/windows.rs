@@ -1150,7 +1150,7 @@ impl WindowsDisplay {
     }
 }
 
-pub fn run<F>(conf: &Conf, f: F)
+pub fn run<F>(conf: &Conf, f: F, headless_fallback: bool)
 where
     F: 'static + FnOnce() -> Box<dyn EventHandler>,
 {
@@ -1160,9 +1160,9 @@ where
         }
         let (wnd, dc) = create_window(
             &conf.window_title,
-            // A hidden window is created without `WS_VISIBLE`, so nothing is
-            // shown when the WGL context is made below.
-            conf.fullscreen && !conf.window_hidden,
+            // The fallback window is created without `WS_VISIBLE`, so nothing
+            // is shown when the WGL context is made below.
+            conf.fullscreen && !headless_fallback,
             conf.window_resizable,
             conf.window_width as _,
             conf.window_height as _,
@@ -1221,7 +1221,7 @@ where
 
         // IMPORTANT: Show window AFTER WGL context is created
         // This ensures IME initializes correctly when window gains focus
-        if !conf.window_hidden {
+        if !headless_fallback {
             ShowWindow(wnd, SW_SHOW);
         }
 

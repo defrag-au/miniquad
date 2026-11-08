@@ -11,8 +11,8 @@
 //! pixel, so a capture is the same on a Retina Mac, an external display and a
 //! CI runner.
 //!
-//! The other platforms fall back to a hidden window (or, on the web, the
-//! canvas) and say so, until their offscreen backend lands.
+//! The other platforms fall back to a window they never show (or, on the web,
+//! the canvas) and say so, until their offscreen backend lands.
 
 use crate::conf::Conf;
 use crate::event::EventHandler;
@@ -30,17 +30,14 @@ where
     {
         #[cfg(not(target_arch = "wasm32"))]
         eprintln!(
-            "miniquad: headless rendering is not implemented on this platform yet; using a hidden window"
+            "miniquad: headless is not implemented on this platform yet; creating a window it will not show"
         );
 
         let mut conf = conf;
         conf.headless = false;
-        // A hidden window is the closest this platform has until the offscreen
-        // backend lands. On the web the canvas is already the whole surface.
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            conf.window_hidden = true;
-        }
-        crate::start(conf, f);
+        // A window it cannot show is the closest this platform has until the
+        // offscreen backend lands. On the web the canvas is already the whole
+        // surface.
+        crate::start_headless_fallback(conf, f);
     }
 }
