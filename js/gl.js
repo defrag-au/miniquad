@@ -434,7 +434,14 @@ function resize(canvas, on_resize) {
     }
 }
 
+var last_dpr = window.devicePixelRatio;
+
 function animation() {
+    // A window moved to a monitor of another scale fires no `resize`.
+    if (window.devicePixelRatio != last_dpr) {
+        last_dpr = window.devicePixelRatio;
+        resize(canvas, wasm_exports.resize);
+    }
     wasm_exports.frame();
     if (!window.blocking_event_loop) {
         if (animation_frame_timeout) {

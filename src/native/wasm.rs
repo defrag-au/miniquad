@@ -316,6 +316,8 @@ pub extern "C" fn resize(width: i32, height: i32) {
         let mut d = crate::native_display().lock().unwrap();
         d.screen_width = width as _;
         d.screen_height = height as _;
+        // The scale changes with the monitor, not only at start.
+        d.dpi_scale = unsafe { dpi_scale() };
     }
     tl_event_handler(|event_handler| {
         event_handler.resize_event(width as _, height as _);
