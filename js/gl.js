@@ -1371,14 +1371,27 @@ var importObject = {
             };
 
             let lastFocus = document.hasFocus();
+            let focusQueued = false;
             var checkFocus = function () {
-                // The element doesn't loose focus when the user switches tabs.
-                // However, the document becomes invisible
-                let hasFocus = document.hasFocus() && document.visibilityState == "visible";
-                if (lastFocus != hasFocus) {
-                    wasm_exports.focus(hasFocus);
-                    lastFocus = hasFocus;
-                }
+                // Delivered from a microtask, never from inside the event. A window
+                // focus or blur can fire synchronously while the wasm is mid-frame —
+                // a wallet popup opening or closing, or the page focusing an input
+                // or the canvas from a plugin call — and calling back into the event
+                // handler then borrows it twice and panics (`already borrowed` at
+                // `tl_event_handler`). A microtask runs once the current frame has
+                // returned, and the state is read again then.
+                if (focusQueued) return;
+                focusQueued = true;
+                Promise.resolve().then(function () {
+                    focusQueued = false;
+                    // The element doesn't loose focus when the user switches tabs.
+                    // However, the document becomes invisible
+                    let hasFocus = document.hasFocus() && document.visibilityState == "visible";
+                    if (lastFocus != hasFocus) {
+                        lastFocus = hasFocus;
+                        wasm_exports.focus(hasFocus);
+                    }
+                });
             }
             document.addEventListener("visibilitychange", checkFocus);
             window.addEventListener("focus", checkFocus);
